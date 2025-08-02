@@ -14,34 +14,20 @@ const PORT = process.env.PORT || 3000;
 // ✅ Middleware
 app.use(cors());
 app.use(express.json());
-// Top of server.js
-const path = require("path");
 
-// Serve static files from the public directory
+// ✅ Serve static files from public
 app.use(express.static(path.join(__dirname, "public")));
 
-// Ensure user is authenticated before serving index.html
-app.get("/", ensureAuthenticated, (req, res) => {
-  const indexPath = path.join(__dirname, "public", "index.html");
-  res.sendFile(indexPath, (err) => {
-    if (err) {
-      console.error("❌ Error sending index.html:", err);
-      res.status(500).send("Server error: index.html not found.");
-    }
-  });
-});
-
-
-// ✅ Session setup (REQUIRED for App ID)
+// ✅ Session setup (required for IBM App ID)
 app.use(
   session({
-    secret: "super-secret-key", // Replace with a strong secret in production
+    secret: "super-secret-key", // Replace this in production
     resave: false,
     saveUninitialized: true,
   })
 );
 
-// ✅ Passport & IBM App ID configuration
+// ✅ Passport & IBM App ID
 app.use(passport.initialize());
 app.use(passport.session());
 
@@ -55,16 +41,12 @@ passport.use(
   })
 );
 
-// ✅ Required for persistent login sessions
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
 // ✅ MongoDB connection
 mongoose
-  .connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  .connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
@@ -75,7 +57,7 @@ const taskSchema = new mongoose.Schema({
 });
 const Task = mongoose.model("Task", taskSchema);
 
-// 🔒 Middleware to protect routes
+// ✅ Middleware to protect routes
 function ensureAuthenticated(req, res, next) {
   if (req.isAuthenticated()) {
     return next();
@@ -83,14 +65,14 @@ function ensureAuthenticated(req, res, next) {
   res.redirect("/ibmcloud/login");
 }
 
-// ✅ IBM App ID routes
+// ✅ App ID routes
 app.get("/ibmcloud/login", passport.authenticate(WebAppStrategy.STRATEGY_NAME));
 
 app.get(
   "/ibmcloud/callback",
   passport.authenticate(WebAppStrategy.STRATEGY_NAME),
   (req, res) => {
-    res.redirect("/"); // Redirect after successful login
+    res.redirect("/");
   }
 );
 
@@ -102,29 +84,24 @@ app.get("/ibmcloud/profile", (req, res) => {
   }
 });
 
-// ✅ Logout route
 app.get("/ibmcloud/logout", (req, res) => {
   req.logout(() => {
     req.session.destroy(() => {
-      res.redirect("/"); // Optional: redirect to homepage or login
+      res.redirect("/");
     });
   });
 });
 
-// ✅ Show login page if not authenticated
+// ✅ CLEANED UP ROOT ROUTE (only one definition now)
 app.get("/", (req, res) => {
   if (req.isAuthenticated()) {
     res.sendFile(path.join(__dirname, "public", "index.html"));
   } else {
-    res.sendFile(path.join(__dirname, "public", "login.html"));
+    res.redirect("/ibmcloud/login");
   }
 });
 
-
-// ✅ Serve static files (after root protection)
-app.use(express.static(path.join(__dirname, "public")));
-
-// ✅ Task API Routes (protected)
+// ✅ API Routes (protected)
 app.get("/api/tasks", ensureAuthenticated, async (req, res) => {
   const tasks = await Task.find();
   res.json(tasks);
@@ -157,7 +134,7 @@ app.delete("/api/tasks/:id", ensureAuthenticated, async (req, res) => {
   res.sendStatus(204);
 });
 
-// ✅ Optional: auth status route
+// ✅ Status route (optional)
 app.get("/status", (req, res) => {
   res.json({
     authenticated: req.isAuthenticated(),
