@@ -1,15 +1,15 @@
 {
   "name": "task-manager",
   "version": "1.0.0",
-  "main": "script.js",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "",
+  "author": "Your Name",
   "license": "ISC",
-  "description": "",
+  "description": "Task manager with IBM App ID and MongoDB",
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
