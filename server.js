@@ -94,10 +94,15 @@ app.get("/ibmcloud/logout", (req, res) => {
   });
 });
 
-// 🔐 Protect the root route
-app.get("/", ensureAuthenticated, (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+// ✅ Show login page if not authenticated
+app.get("/", (req, res) => {
+  if (req.isAuthenticated()) {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+  } else {
+    res.sendFile(path.join(__dirname, "public", "login.html"));
+  }
 });
+
 
 // ✅ Serve static files (after root protection)
 app.use(express.static(path.join(__dirname, "public")));
