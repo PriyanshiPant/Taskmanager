@@ -14,6 +14,23 @@ const PORT = process.env.PORT || 3000;
 // ✅ Middleware
 app.use(cors());
 app.use(express.json());
+// Top of server.js
+const path = require("path");
+
+// Serve static files from the public directory
+app.use(express.static(path.join(__dirname, "public")));
+
+// Ensure user is authenticated before serving index.html
+app.get("/", ensureAuthenticated, (req, res) => {
+  const indexPath = path.join(__dirname, "public", "index.html");
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      console.error("❌ Error sending index.html:", err);
+      res.status(500).send("Server error: index.html not found.");
+    }
+  });
+});
+
 
 // ✅ Session setup (REQUIRED for App ID)
 app.use(
