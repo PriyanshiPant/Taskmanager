@@ -14,12 +14,11 @@ const PORT = process.env.PORT || 3000;
 // ✅ Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
 
 // ✅ Session setup (REQUIRED for App ID)
 app.use(
   session({
-    secret: "super-secret-key", // Replace with strong secret in production
+    secret: "super-secret-key", // Replace with a strong secret in production
     resave: false,
     saveUninitialized: true,
   })
@@ -59,6 +58,14 @@ const taskSchema = new mongoose.Schema({
 });
 const Task = mongoose.model("Task", taskSchema);
 
+// 🔒 Middleware to protect routes
+function ensureAuthenticated(req, res, next) {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.redirect("/ibmcloud/login");
+}
+
 // ✅ IBM App ID routes
 app.get("/ibmcloud/login", passport.authenticate(WebAppStrategy.STRATEGY_NAME));
 
@@ -78,13 +85,22 @@ app.get("/ibmcloud/profile", (req, res) => {
   }
 });
 
-// 🔒 Middleware to protect routes
-function ensureAuthenticated(req, res, next) {
-  if (req.isAuthenticated()) {
-    return next();
-  }
-  res.redirect("/ibmcloud/login");
-}
+// ✅ Logout route
+app.get("/ibmcloud/logout", (req, res) => {
+  req.logout(() => {
+    req.session.destroy(() => {
+      res.redirect("/"); // Optional: redirect to homepage or login
+    });
+  });
+});
+
+// 🔐 Protect the root route
+app.get("/", ensureAuthenticated, (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// ✅ Serve static files (after root protection)
+app.use(express.static(path.join(__dirname, "public")));
 
 // ✅ Task API Routes (protected)
 app.get("/api/tasks", ensureAuthenticated, async (req, res) => {
@@ -119,17 +135,13 @@ app.delete("/api/tasks/:id", ensureAuthenticated, async (req, res) => {
   res.sendStatus(204);
 });
 
-// ✅ Logout route
-app.get("/ibmcloud/logout", (req, res) => {
-  req.logout(() => {
-    req.session.destroy(() => {
-      res.redirect("/"); // Change this if you want a custom redirect after logout
-    });
+// ✅ Optional: auth status route
+app.get("/status", (req, res) => {
+  res.json({
+    authenticated: req.isAuthenticated(),
+    user: req.user || null,
   });
 });
 
 // ✅ Start server
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-
-
-
