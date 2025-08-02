@@ -1,29 +1,56 @@
-require("dotenv").config(); // ✅ Load env variables first
+require("dotenv").config();
 
 const express = require("express");
 const mongoose = require("mongoose");
 const path = require("path");
 const cors = require("cors");
+const passport = require("passport");
+const session = require("express-session");
+const { WebAppStrategy } = require("ibmcloud-appid");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// ✅ Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public"))); // Serve frontend files
+app.use(express.static(path.join(__dirname, "public")));
+
+// ✅ Session setup (REQUIRED for App ID)
+app.use(
+  session({
+    secret: "super-secret-key", // Replace with strong secret in production
+    resave: false,
+    saveUninitialized: true,
+  })
+);
+
+// ✅ Passport & IBM App ID configuration
+app.use(passport.initialize());
+app.use(passport.session());
+
+passport.use(
+  new WebAppStrategy({
+    clientId: process.env.CLIENT_ID,
+    secret: process.env.CLIENT_SECRET,
+    tenantId: process.env.TENANT_ID,
+    oauthServerUrl: process.env.OAUTH_SERVER_URL,
+    redirectUri: process.env.REDIRECT_URI,
+  })
+);
+
+// ✅ Required for persistent login sessions
+passport.serializeUser((user, done) => done(null, user));
+passport.deserializeUser((obj, done) => done(null, obj));
 
 // ✅ MongoDB connection
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => {
-  console.log("✅ MongoDB connected");
-})
-.catch(err => {
-  console.error("❌ MongoDB connection error:", err);
-});
+mongoose
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch((err) => console.error("❌ MongoDB connection error:", err));
 
 // ✅ Task schema and model
 const taskSchema = new mongoose.Schema({
@@ -32,32 +59,47 @@ const taskSchema = new mongoose.Schema({
 });
 const Task = mongoose.model("Task", taskSchema);
 
-// ✅ API Routes
-app.get("/api/tasks", async (req, res) => {
+// ✅ IBM App ID routes
+app.get("/ibmcloud/login", passport.authenticate(WebAppStrategy.STRATEGY_NAME));
+
+app.get(
+  "/ibmcloud/callback",
+  passport.authenticate(WebAppStrategy.STRATEGY_NAME),
+  (req, res) => {
+    res.redirect("/"); // Redirect after successful login
+  }
+);
+
+app.get("/ibmcloud/profile", (req, res) => {
+  if (req.user) {
+    res.json({ user: req.user });
+  } else {
+    res.status(401).json({ error: "Not logged in" });
+  }
+});
+
+// 🔒 Middleware to protect routes
+function ensureAuthenticated(req, res, next) {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.redirect("/ibmcloud/login");
+}
+
+// ✅ Task API Routes (protected)
+app.get("/api/tasks", ensureAuthenticated, async (req, res) => {
   const tasks = await Task.find();
   res.json(tasks);
 });
 
-app.post("/api/tasks", async (req, res) => {
+app.post("/api/tasks", ensureAuthenticated, async (req, res) => {
   const { text, completed } = req.body;
   const newTask = new Task({ text, completed: completed || false });
   await newTask.save();
   res.json(newTask);
 });
 
-// DELETE all tasks
-app.delete("/api/tasks", async (req, res) => {
-  await Task.deleteMany({});
-  res.sendStatus(204);
-});
-
-app.delete("/api/tasks/:id", async (req, res) => {
-  await Task.findByIdAndDelete(req.params.id);
-  res.sendStatus(204);
-});
-
-// Update task completed status or text
-app.put("/api/tasks/:id", async (req, res) => {
+app.put("/api/tasks/:id", ensureAuthenticated, async (req, res) => {
   const { text, completed } = req.body;
   const updatedTask = await Task.findByIdAndUpdate(
     req.params.id,
@@ -67,9 +109,27 @@ app.put("/api/tasks/:id", async (req, res) => {
   res.json(updatedTask);
 });
 
+app.delete("/api/tasks", ensureAuthenticated, async (req, res) => {
+  await Task.deleteMany({});
+  res.sendStatus(204);
+});
+
+app.delete("/api/tasks/:id", ensureAuthenticated, async (req, res) => {
+  await Task.findByIdAndDelete(req.params.id);
+  res.sendStatus(204);
+});
+
+// ✅ Logout route
+app.get("/ibmcloud/logout", (req, res) => {
+  req.logout(() => {
+    req.session.destroy(() => {
+      res.redirect("/"); // Change this if you want a custom redirect after logout
+    });
+  });
+});
 
 // ✅ Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
+
 

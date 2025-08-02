@@ -9,6 +9,13 @@
 <body>
   <h1>Task Manager</h1>
 
+  <!-- 🔐 Auth Buttons -->
+  <div id="auth">
+    <button id="login-btn">Login</button>
+    <button id="logout-btn" style="display: none;">Logout</button>
+    <span id="user-greeting" style="margin-left: 1em;"></span>
+  </div>
+
   <form id="task-form">
     <input type="text" id="task-input" placeholder="Enter a task" required />
     <button type="submit">Add Task</button>
@@ -18,9 +25,36 @@
 
   <ul id="task-list"></ul>
 
-    <button id="clear-completed">Clear Completed Tasks</button>
-    <!-- <button id="clear-all">Clear All Tasks</button> -->
+  <button id="clear-completed">Clear Completed Tasks</button>
 
   <script src="script.js"></script>
+
+  <script>
+    async function checkAuth() {
+      try {
+        const res = await fetch("/ibmcloud/profile");
+        if (!res.ok) throw new Error("Not logged in");
+        const data = await res.json();
+        if (data.user) {
+          document.getElementById("login-btn").style.display = "none";
+          document.getElementById("logout-btn").style.display = "inline-block";
+          document.getElementById("user-greeting").textContent = `Welcome, ${data.user.name || data.user.email}`;
+          loadTasks(); // 🔐 Only load tasks if logged in
+        }
+      } catch (err) {
+        console.log("Not logged in");
+      }
+    }
+
+    document.getElementById("login-btn").addEventListener("click", () => {
+      window.location.href = "/ibmcloud/login";
+    });
+
+    document.getElementById("logout-btn").addEventListener("click", () => {
+      window.location.href = "/ibmcloud/logout";
+    });
+
+    checkAuth(); // Run on page load
+  </script>
 </body>
 </html>

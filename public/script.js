@@ -49,15 +49,28 @@ document.addEventListener("DOMContentLoaded", async () => {
     return await res.json();
   }
 
-  // Add task to backend
-  async function addTask(text) {
+ // ✅ Improved version of addTask
+async function addTask(text) {
+  try {
     const res = await fetch("/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
     });
+
+    if (!res.ok) {
+      const error = await res.json();
+      alert("❌ Failed to add task: " + error.error);
+      return;
+    }
+
     return await res.json();
+  } catch (err) {
+    console.error("❌ Network/server error:", err);
+    alert("❌ Could not connect to server.");
   }
+}
+
 
   // Delete task from backend
   async function deleteTask(id) {
